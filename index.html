@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Timer App</title>
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="video-wrapper">
+            <video id="preview" autoplay muted playsinline></video>
+            <div id="stopwatch-display">00:00.00</div>
+        </div>
+
+        <div class="control-group">
+            <p>【タイマー操作】</p>
+            <button id="timerStartBtn" class="timer-btn">タイマー開始</button>
+            <button id="timerStopBtn" class="timer-btn" disabled>タイマー停止</button>
+            <button id="timerResetBtn" class="timer-btn">リセット</button>
+        </div>
+
+        <div class="control-group">
+            <p>【撮影操作】</p>
+            <button id="recordStartBtn" class="record-btn">録画開始</button>
+            <button id="recordStopBtn" class="record-btn" disabled>録画停止</button>
+            <button id="photoBtn" class="photo-btn">写真を撮る</button>
+        </div>
+        
+        <div id="download-link-container"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
