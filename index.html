@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高機能カメラタイマー</title>
+    <title>Iconic Camera Timer</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="app-container">
@@ -13,23 +14,25 @@
             <div id="stopwatch-display">00:00.00</div>
         </div>
 
-        <div class="control-group">
-            <p>【タイマー】</p>
-            <button id="timerStartBtn">開始</button>
-            <button id="timerStopBtn" disabled>停止</button>
-            <button id="timerResetBtn">リセット</button>
-        </div>
+        <div class="glass-panel">
+            <div class="control-section">
+                <p class="label">TIMER</p>
+                <div class="button-row">
+                    <button id="timerStartBtn" title="タイマー開始"><i data-lucide="play"></i></button>
+                    <button id="timerStopBtn" title="タイマー停止" disabled><i data-lucide="pause"></i></button>
+                    <button id="timerResetBtn" title="リセット"><i data-lucide="rotate-ccw"></i></button>
+                </div>
+            </div>
 
-        <div class="control-group">
-            <p>【録画・撮影】</p>
-            <button id="recordStartBtn" class="record-btn">録画開始</button>
-            <button id="recordStopBtn" class="record-btn" disabled>録画停止</button>
-            <button id="photoBtn" class="photo-btn">写真を撮る</button>
-        </div>
-
-        <div class="control-group">
-            <p>【設定】</p>
-            <button id="switchCameraBtn">カメラ切り替え</button>
+            <div class="control-section">
+                <p class="label">CAPTURE</p>
+                <div class="button-row">
+                    <button id="recordStartBtn" class="record-btn" title="録画開始"><i data-lucide="video"></i></button>
+                    <button id="recordStopBtn" class="record-btn" disabled title="録画停止"><i data-lucide="square"></i></button>
+                    <button id="photoBtn" class="photo-btn" title="写真を撮る"><i data-lucide="camera"></i></button>
+                    <button id="switchCameraBtn" title="カメラ切り替え"><i data-lucide="refresh-cw"></i></button>
+                </div>
+            </div>
         </div>
         
         <div id="download-link-container"></div>
