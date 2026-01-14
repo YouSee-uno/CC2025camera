@@ -1,13 +1,12 @@
 const video = document.getElementById('preview');
 const stopwatchDisplay = document.getElementById('stopwatch-display');
-
 const timerStartBtn = document.getElementById('timerStartBtn');
 const timerStopBtn = document.getElementById('timerStopBtn');
 const timerResetBtn = document.getElementById('timerResetBtn');
 const recordStartBtn = document.getElementById('recordStartBtn');
 const recordStopBtn = document.getElementById('recordStopBtn');
 const photoBtn = document.getElementById('photoBtn');
-const switchCameraBtn = document.getElementById('switchCameraBtn'); // 切り替えボタン
+const switchCameraBtn = document.getElementById('switchCameraBtn');
 const downloadContainer = document.getElementById('download-link-container');
 
 const captureCanvas = document.createElement('canvas');
@@ -22,32 +21,30 @@ let timerRequestID;
 let drawLoopID;
 
 let mainStream = null;
-let currentFacingMode = "user"; // "user" は内蔵、"environment" は外側
+let currentFacingMode = "user"; 
 
-/**
- * 1. カメラとマイクの初期化（切り替え対応）
- */
+// 1. カメラとマイクの初期化
 async function setupCamera() {
-    // 既存のストリームがあれば停止させる（切り替え時の競合防止）
+    // 動作中のトラックがあれば全て停止（これが切り替えには必須）
     if (mainStream) {
         mainStream.getTracks().forEach(track => track.stop());
     }
 
-    try {
-        const constraints = {
-            video: { 
-                width: { ideal: 1280 }, 
-                height: { ideal: 720 }, 
-                facingMode: currentFacingMode 
-            },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true
-            }
-        };
+    const constraints = {
+        video: { 
+            facingMode: currentFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        },
+        audio: true
+    };
 
+    try {
         mainStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = mainStream;
+        
+        // 内カメラ（user）の時だけ鏡のように反転表示（録画には影響させない設定も可）
+        video.style.transform = (currentFacingMode === "user") ? "scaleX(-1)" : "scaleX(1)";
 
         video.onloadedmetadata = () => {
             video.play();
@@ -56,54 +53,46 @@ async function setupCamera() {
         };
     } catch (err) {
         console.error("Camera Error:", err);
-        alert("カメラの切り替えに失敗しました。デバイスが対応していない可能性があります。");
+        alert("カメラの切り替えに失敗しました。このデバイスでは複数のカメラが許可されていない可能性があります。");
     }
 }
 
-/**
- * カメラの切り替えイベント
- */
-switchCameraBtn.onclick = () => {
-    // 録画中は切り替え不可
-    if (recorder && recorder.state === "recording") {
-        alert("録画中はカメラを切り替えられません。");
-        return;
-    }
-    // モードを反転
+// カメラ切り替え
+switchCameraBtn.onclick = async () => {
+    if (recorder && recorder.state === "recording") return;
     currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
-    setupCamera();
+    await setupCamera();
 };
 
-/**
- * 2. 合成描画ループ（タイマー焼き込み）
- */
+// 2. 合成描画ループ（タイマー焼き込み）
 function drawCanvas() {
-    // 左右反転の処理（内カメラの時だけ鏡像にする場合はここで処理可能）
+    // Canvasにカメラ映像を描画
+    // 内カメラの場合はCanvas上も反転させるならここを調整
     ctx.save();
+    if (currentFacingMode === "user") {
+        ctx.translate(captureCanvas.width, 0);
+        ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
     ctx.restore();
     
+    // タイマー描画
     const timerText = stopwatchDisplay.textContent;
     ctx.font = "bold 60px 'BIZ UDGothic'";
     const x = 40;
     const y = 90;
 
-    // 白縁取り
     ctx.strokeStyle = "white";
     ctx.lineWidth = 10;
     ctx.lineJoin = "round";
     ctx.strokeText(timerText, x, y);
-    
-    // 黒文字
     ctx.fillStyle = "black";
     ctx.fillText(timerText, x, y);
 
     drawLoopID = requestAnimationFrame(drawCanvas);
 }
 
-/**
- * 3. タイマー制御
- */
+// 3. タイマー制御
 function updateTimer() {
     if (!timerRunning) return;
     const now = Date.now();
@@ -140,20 +129,14 @@ timerResetBtn.onclick = () => {
     timerStopBtn.disabled = true;
 };
 
-/**
- * 4. 録画
- */
+// 4. 録画
 recordStartBtn.onclick = () => {
     recordedChunks = [];
     drawCanvas(); 
-    
     const canvasStream = captureCanvas.captureStream(30);
     const recordingStream = new MediaStream();
     
-    // 映像トラック
     canvasStream.getVideoTracks().forEach(track => recordingStream.addTrack(track));
-    
-    // 音声トラック（メインストリームから直接追加して音質を確保）
     if (mainStream && mainStream.getAudioTracks().length > 0) {
         mainStream.getAudioTracks().forEach(track => recordingStream.addTrack(track));
     }
@@ -164,23 +147,12 @@ recordStartBtn.onclick = () => {
     }
 
     recorder = new MediaRecorder(recordingStream, options);
-    
-    recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-    };
-
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     recorder.onstop = () => {
         cancelAnimationFrame(drawLoopID);
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
-        
-        downloadContainer.innerHTML = '';
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `video_${Date.now()}.mp4`; // ダウンロード名はmp4
-        a.textContent = '📥 音声入りタイマー動画を保存';
-        a.className = 'download-link-style'; 
-        downloadContainer.appendChild(a);
+        downloadContainer.innerHTML = `<a href="${url}" download="video_${Date.now()}.mp4" class="download-link-style">📥 動画を保存</a>`;
     };
 
     recorder.start(1000);
@@ -189,16 +161,12 @@ recordStartBtn.onclick = () => {
 };
 
 recordStopBtn.onclick = () => {
-    if (recorder && recorder.state !== "inactive") {
-        recorder.stop();
-        recordStartBtn.disabled = false;
-        recordStopBtn.disabled = true;
-    }
+    recorder.stop();
+    recordStartBtn.disabled = false;
+    recordStopBtn.disabled = true;
 };
 
-/**
- * 5. 写真撮影
- */
+// 5. 写真
 photoBtn.onclick = () => {
     drawCanvas();
     const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.9);
@@ -209,5 +177,4 @@ photoBtn.onclick = () => {
     if (!recordStartBtn.disabled) cancelAnimationFrame(drawLoopID);
 };
 
-// 起動
 setupCamera();
