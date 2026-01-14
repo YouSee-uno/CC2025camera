@@ -23,31 +23,53 @@ let drawLoopID;
 let mainStream = null;
 let currentFacingMode = "user"; 
 
-// Lucideアイコンの初期化
 lucide.createIcons();
+
+// Safari互換のMIMEタイプを特定する関数
+function getSupportedMimeType() {
+    const types = [
+        'video/mp4', 
+        'video/webm;codecs=vp9', 
+        'video/webm;codecs=vp8', 
+        'video/webm'
+    ];
+    for (let type of types) {
+        if (MediaRecorder.isTypeSupported(type)) return type;
+    }
+    return '';
+}
 
 async function setupCamera() {
     if (mainStream) mainStream.getTracks().forEach(track => track.stop());
+    
     const constraints = {
-        video: { facingMode: currentFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { 
+            facingMode: currentFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        },
         audio: true
     };
+
     try {
         mainStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = mainStream;
         video.style.transform = (currentFacingMode === "user") ? "scaleX(-1)" : "scaleX(1)";
-        video.onloadedmetadata = () => {
-            video.play();
-            captureCanvas.width = video.videoWidth;
-            captureCanvas.height = video.videoHeight;
-        };
+        
+        // Safariでは明示的にplay()を呼ぶ必要がある
+        await video.play();
+        
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
     } catch (err) {
-        alert("カメラの起動に失敗しました。");
+        console.error(err);
+        alert("カメラの起動に失敗しました。Safariの設定でカメラを許可してください。");
     }
 }
 
 function drawCanvasLoop() {
     if (!recorder || recorder.state === "inactive") return;
+    
     ctx.save();
     if (currentFacingMode === "user") {
         ctx.translate(captureCanvas.width, 0);
@@ -55,11 +77,16 @@ function drawCanvasLoop() {
     }
     ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
     ctx.restore();
+    
     const timerText = stopwatchDisplay.textContent;
     ctx.font = "bold 60px 'BIZ UDGothic'";
-    ctx.strokeStyle = "white"; ctx.lineWidth = 10; ctx.lineJoin = "round";
+    ctx.strokeStyle = "white"; 
+    ctx.lineWidth = 10; 
+    ctx.lineJoin = "round";
     ctx.strokeText(timerText, 40, 90);
-    ctx.fillStyle = "black"; ctx.fillText(timerText, 40, 90);
+    ctx.fillStyle = "black"; 
+    ctx.fillText(timerText, 40, 90);
+    
     drawLoopID = requestAnimationFrame(drawCanvasLoop);
 }
 
@@ -94,27 +121,37 @@ timerResetBtn.onclick = () => {
 
 recordStartBtn.onclick = () => {
     recordedChunks = [];
+    const mimeType = getSupportedMimeType();
+    
+    // Canvasから映像、マイクから音声を合成
     const canvasStream = captureCanvas.captureStream(30);
     const combinedStream = new MediaStream();
+    
     canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
-    if (mainStream) mainStream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
+    if (mainStream) {
+        mainStream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
+    }
 
-    const options = { mimeType: 'video/webm;codecs=vp8,opus' };
-    recorder = new MediaRecorder(combinedStream, options);
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    recorder.onstop = () => {
-        cancelAnimationFrame(drawLoopID);
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        downloadContainer.innerHTML = `<a href="${url}" download="video_${Date.now()}.webm" class="download-link-style">📥 動画を保存</a>`;
-    };
-    recorder.start(1000);
-    drawCanvasLoop();
-    recordStartBtn.disabled = true; recordStopBtn.disabled = false;
+    try {
+        recorder = new MediaRecorder(combinedStream, { mimeType });
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        recorder.onstop = () => {
+            cancelAnimationFrame(drawLoopID);
+            const blob = new Blob(recordedChunks, { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+            downloadContainer.innerHTML = `<a href="${url}" download="video_${Date.now()}.${ext}" class="download-link-style">📥 動画を保存</a>`;
+        };
+        recorder.start(1000);
+        drawCanvasLoop();
+        recordStartBtn.disabled = true; recordStopBtn.disabled = false;
+    } catch (e) {
+        alert("このブラウザは録画に対応していません。");
+    }
 };
 
 recordStopBtn.onclick = () => {
-    if (recorder && recorder.state === "recording") recorder.stop();
+    if (recorder && recorder.state !== "inactive") recorder.stop();
     recordStartBtn.disabled = false; recordStopBtn.disabled = true;
 };
 
@@ -129,11 +166,13 @@ photoBtn.onclick = () => {
     if (currentFacingMode === "user") { ctx.translate(captureCanvas.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
     ctx.restore();
+    
     const timerText = stopwatchDisplay.textContent;
     ctx.font = "bold 60px 'BIZ UDGothic'";
     ctx.strokeStyle = "white"; ctx.lineWidth = 10;
     ctx.strokeText(timerText, 40, 90);
     ctx.fillStyle = "black"; ctx.fillText(timerText, 40, 90);
+    
     const link = document.createElement('a');
     link.href = captureCanvas.toDataURL('image/jpeg', 0.9);
     link.download = `photo_${Date.now()}.jpg`;
