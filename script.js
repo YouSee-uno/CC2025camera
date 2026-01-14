@@ -7,6 +7,7 @@ const timerResetBtn = document.getElementById('timerResetBtn');
 const recordStartBtn = document.getElementById('recordStartBtn');
 const recordStopBtn = document.getElementById('recordStopBtn');
 const photoBtn = document.getElementById('photoBtn');
+const switchCameraBtn = document.getElementById('switchCameraBtn'); // 切り替えボタン
 const downloadContainer = document.getElementById('download-link-container');
 
 const captureCanvas = document.createElement('canvas');
@@ -20,50 +21,80 @@ let timerRunning = false;
 let timerRequestID;
 let drawLoopID;
 
-// カメラとマイクのストリームを保持
 let mainStream = null;
+let currentFacingMode = "user"; // "user" は内蔵、"environment" は外側
 
 /**
- * 1. カメラとマイクの初期化
+ * 1. カメラとマイクの初期化（切り替え対応）
  */
 async function setupCamera() {
+    // 既存のストリームがあれば停止させる（切り替え時の競合防止）
+    if (mainStream) {
+        mainStream.getTracks().forEach(track => track.stop());
+    }
+
     try {
-        mainStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: 1280, height: 720 }, 
+        const constraints = {
+            video: { 
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 }, 
+                facingMode: currentFacingMode 
+            },
             audio: {
                 echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            } 
-        });
+                noiseSuppression: true
+            }
+        };
+
+        mainStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = mainStream;
+
         video.onloadedmetadata = () => {
             video.play();
             captureCanvas.width = video.videoWidth;
             captureCanvas.height = video.videoHeight;
         };
     } catch (err) {
-        console.error("Camera/Mic Error:", err);
-        alert("カメラまたはマイクの起動に失敗しました。権限を許可してください。");
+        console.error("Camera Error:", err);
+        alert("カメラの切り替えに失敗しました。デバイスが対応していない可能性があります。");
     }
 }
 
 /**
- * 2. 合成描画ループ
+ * カメラの切り替えイベント
+ */
+switchCameraBtn.onclick = () => {
+    // 録画中は切り替え不可
+    if (recorder && recorder.state === "recording") {
+        alert("録画中はカメラを切り替えられません。");
+        return;
+    }
+    // モードを反転
+    currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+    setupCamera();
+};
+
+/**
+ * 2. 合成描画ループ（タイマー焼き込み）
  */
 function drawCanvas() {
+    // 左右反転の処理（内カメラの時だけ鏡像にする場合はここで処理可能）
+    ctx.save();
     ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+    ctx.restore();
     
     const timerText = stopwatchDisplay.textContent;
     ctx.font = "bold 60px 'BIZ UDGothic'";
     const x = 40;
     const y = 90;
 
+    // 白縁取り
     ctx.strokeStyle = "white";
     ctx.lineWidth = 10;
     ctx.lineJoin = "round";
     ctx.strokeText(timerText, x, y);
     
+    // 黒文字
     ctx.fillStyle = "black";
     ctx.fillText(timerText, x, y);
 
@@ -110,44 +141,29 @@ timerResetBtn.onclick = () => {
 };
 
 /**
- * 4. 録画（確実な音声合成）
+ * 4. 録画
  */
 recordStartBtn.onclick = () => {
     recordedChunks = [];
     drawCanvas(); 
     
-    // Canvasからの映像ストリーム (30fps)
     const canvasStream = captureCanvas.captureStream(30);
-    
-    // 録画用ストリームを作成
     const recordingStream = new MediaStream();
     
-    // 映像トラックを追加
+    // 映像トラック
     canvasStream.getVideoTracks().forEach(track => recordingStream.addTrack(track));
     
-    // 音声トラックを直接メインストリームから取得して追加
+    // 音声トラック（メインストリームから直接追加して音質を確保）
     if (mainStream && mainStream.getAudioTracks().length > 0) {
-        mainStream.getAudioTracks().forEach(track => {
-            recordingStream.addTrack(track);
-            console.log("Audio track added:", track.label);
-        });
-    } else {
-        alert("マイク音声が検出できません。録画を中止します。");
-        return;
+        mainStream.getAudioTracks().forEach(track => recordingStream.addTrack(track));
     }
 
-    // MIMEタイプの決定
-    let options = { mimeType: 'video/webm;codecs=vp9,opus' }; // Opusは音声コーデック
+    let options = { mimeType: 'video/webm;codecs=vp9,opus' };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
         options = { mimeType: 'video/webm' };
     }
 
-    try {
-        recorder = new MediaRecorder(recordingStream, options);
-    } catch (e) {
-        console.error("MediaRecorder error:", e);
-        recorder = new MediaRecorder(recordingStream); // デフォルト設定で試行
-    }
+    recorder = new MediaRecorder(recordingStream, options);
     
     recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunks.push(e.data);
@@ -155,19 +171,19 @@ recordStartBtn.onclick = () => {
 
     recorder.onstop = () => {
         cancelAnimationFrame(drawLoopID);
-        const blob = new Blob(recordedChunks, { type: 'video/mp4' }); // ダウンロード時はmp4
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         
         downloadContainer.innerHTML = '';
         const a = document.createElement('a');
         a.href = url;
-        a.download = `video_${Date.now()}.mp4`;
-        a.textContent = '📥 動画をダウンロード';
+        a.download = `video_${Date.now()}.mp4`; // ダウンロード名はmp4
+        a.textContent = '📥 音声入りタイマー動画を保存';
         a.className = 'download-link-style'; 
         downloadContainer.appendChild(a);
     };
 
-    recorder.start(1000); // 1秒ごとにデータをチャンク化して安定させる
+    recorder.start(1000);
     recordStartBtn.disabled = true;
     recordStopBtn.disabled = false;
 };
@@ -193,4 +209,5 @@ photoBtn.onclick = () => {
     if (!recordStartBtn.disabled) cancelAnimationFrame(drawLoopID);
 };
 
+// 起動
 setupCamera();
