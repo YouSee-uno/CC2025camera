@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Safari Optimized Camera</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Hybrid Camera Timer</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -11,26 +11,24 @@
     <div class="app-container">
         <div class="video-wrapper">
             <video id="preview" autoplay muted playsinline webkit-playsinline></video>
+            
             <div id="stopwatch-display">00:00.00</div>
-        </div>
 
-        <div class="glass-panel">
-            <div class="control-section">
-                <p class="label">TIMER</p>
-                <div class="button-row">
-                    <button id="timerStartBtn" title="タイマー開始"><i data-lucide="play"></i></button>
-                    <button id="timerStopBtn" title="タイマー停止" disabled><i data-lucide="pause"></i></button>
-                    <button id="timerResetBtn" title="リセット"><i data-lucide="rotate-ccw"></i></button>
-                </div>
+            <div class="top-toolbar">
+                <button id="switchCameraBtn" class="icon-btn"><i data-lucide="refresh-cw"></i></button>
             </div>
 
-            <div class="control-section">
-                <p class="label">CAPTURE</p>
-                <div class="button-row">
-                    <button id="recordStartBtn" class="record-btn" title="録画開始"><i data-lucide="video"></i></button>
-                    <button id="recordStopBtn" class="record-btn" disabled title="録画停止"><i data-lucide="square"></i></button>
-                    <button id="photoBtn" class="photo-btn" title="写真を撮る"><i data-lucide="camera"></i></button>
-                    <button id="switchCameraBtn" title="カメラ切り替え"><i data-lucide="refresh-cw"></i></button>
+            <div class="controls-overlay">
+                <div class="timer-group">
+                    <button id="timerStartBtn" class="icon-btn timer-start"><i data-lucide="play"></i></button>
+                    <button id="timerStopBtn" class="icon-btn timer-stop" disabled><i data-lucide="pause"></i></button>
+                    <button id="timerResetBtn" class="icon-btn"><i data-lucide="rotate-ccw"></i></button>
+                </div>
+                
+                <div class="shutter-group">
+                    <button id="photoBtn" class="shutter-btn photo"><i data-lucide="camera"></i></button>
+                    <button id="recordStartBtn" class="shutter-btn record"><div class="record-dot"></div></button>
+                    <button id="recordStopBtn" class="shutter-btn stop" disabled><i data-lucide="square"></i></button>
                 </div>
             </div>
         </div>

@@ -2,128 +2,79 @@
 
 body {
     font-family: 'BIZ UDGothic', sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background: radial-gradient(circle at center, #2c3e50 0%, #000 100%);
-    margin: 0;
-    color: white;
+    background: #000; margin: 0; overflow: hidden;
+    height: 100vh; width: 100vw;
 }
 
-.app-container {
-    text-align: center;
-    width: 95%;
-    max-width: 600px;
-}
-
-.video-wrapper {
-    position: relative;
-    width: 100%;
-    background: #000;
-    border-radius: 30px;
-    overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: 20px;
+.app-container, .video-wrapper {
+    width: 100%; height: 100%; position: relative;
 }
 
 video {
-    width: 100%;
-    display: block;
+    width: 100%; height: 100%; object-fit: cover;
 }
 
+/* タイマー表示：常に上部中央付近 */
 #stopwatch-display {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: black;
-    text-shadow: 1.5px 1.5px 0 #fff, -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff;
-    background: rgba(255, 255, 255, 0.25);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    padding: 10px 20px;
-    border-radius: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    position: absolute; top: 10%; width: 100%; text-align: center;
+    font-size: clamp(2rem, 8vw, 4rem); font-weight: 700; color: black;
+    text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff;
+    pointer-events: none; z-index: 10;
 }
 
-/* グラスパネル */
-.glass-panel {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 25px;
-    padding: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+/* 操作パネル：基本は下部（縦画面用） */
+.controls-overlay {
+    position: absolute; bottom: 5%; width: 100%;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    z-index: 20; padding-bottom: env(safe-area-inset-bottom);
 }
 
-.label {
-    font-size: 0.65rem;
-    letter-spacing: 0.2rem;
-    color: rgba(255, 255, 255, 0.4);
-    margin-bottom: 8px;
+.timer-group, .shutter-group {
+    display: flex; align-items: center; gap: 20px;
 }
 
-.button-row {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    flex-wrap: wrap;
+/* 横画面（Landscape）時のiPad用レイアウト調整 */
+@media (orientation: landscape) {
+    .controls-overlay {
+        bottom: 0; right: 5%; width: auto; height: 100%;
+        flex-direction: row-reverse; justify-content: center;
+        padding-right: env(safe-area-inset-right);
+    }
+    .timer-group, .shutter-group {
+        flex-direction: column;
+    }
+    #stopwatch-display { top: 5%; }
 }
 
-/* アイコンボタンの基本スタイル */
-button {
-    width: 54px;
-    height: 54px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* ボタン共通設定 */
+.icon-btn {
+    width: 54px; height: 54px; border-radius: 50%; border: none;
+    background: rgba(0, 0, 0, 0.5); color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
 }
 
-button i {
-    width: 24px;
-    height: 24px;
+.shutter-btn {
+    width: 72px; height: 72px; border-radius: 50%; border: 4px solid white;
+    background: rgba(255, 255, 255, 0.1); color: white;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 
-button:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
+.record-dot { width: 22px; height: 22px; background: #ff3b30; border-radius: 50%; }
+.timer-start { color: #34c759; }
+.timer-stop { color: #ff9500; }
+
+.top-toolbar { position: absolute; top: 20px; right: 20px; z-index: 30; }
+
+button:disabled { opacity: 0.1; }
+button:active { transform: scale(0.9); }
+
+/* ダウンロードリンク */
+#download-link-container {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 100; text-align: center;
 }
-
-button:active:not(:disabled) {
-    transform: scale(0.95);
-}
-
-button:disabled {
-    opacity: 0.1;
-    cursor: not-allowed;
-}
-
-/* 特定のボタンのアクセント */
-#timerStartBtn { color: #2ecc71; border-color: rgba(46, 204, 113, 0.4); }
-#recordStartBtn { color: #e74c3c; border-color: rgba(231, 76, 60, 0.4); }
-#photoBtn { color: #3498db; border-color: rgba(52, 152, 219, 0.4); }
-
 .download-link-style {
-    display: inline-block;
-    margin-top: 20px;
-    padding: 12px 25px;
-    background: rgba(46, 204, 113, 0.2);
-    border: 1px solid #2ecc71;
-    color: #2ecc71;
-    text-decoration: none;
-    border-radius: 12px;
-    font-weight: bold;
-    font-size: 0.9rem;
+    background: #34c759; color: white; padding: 15px 30px;
+    border-radius: 30px; text-decoration: none; font-weight: bold;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }

@@ -10,7 +10,7 @@ const switchCameraBtn = document.getElementById('switchCameraBtn');
 const downloadContainer = document.getElementById('download-link-container');
 
 const captureCanvas = document.createElement('canvas');
-const ctx = captureCanvas.getContext('2d');
+const ctx = captureCanvas.getContext('2d', { alpha: false });
 
 let recorder;
 let recordedChunks = [];
@@ -19,25 +19,23 @@ let elapsedTime = 0;
 let timerRunning = false;
 let timerRequestID;
 let drawLoopID;
-
 let mainStream = null;
 let currentFacingMode = "user"; 
 
 lucide.createIcons();
 
-// Safari互換のMIMEタイプ特定
-function getSupportedMimeType() {
-    const types = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-    for (let type of types) {
-        if (MediaRecorder.isTypeSupported(type)) return type;
+// 向き変更の検知
+window.addEventListener('resize', () => {
+    if (video.videoWidth) {
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
     }
-    return '';
-}
+});
 
 async function setupCamera() {
     if (mainStream) mainStream.getTracks().forEach(track => track.stop());
     const constraints = {
-        video: { facingMode: currentFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: currentFacingMode, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
         audio: true
     };
     try {
@@ -48,125 +46,81 @@ async function setupCamera() {
         captureCanvas.width = video.videoWidth;
         captureCanvas.height = video.videoHeight;
     } catch (err) {
-        alert("カメラの起動に失敗しました。");
+        alert("Camera Access Error");
     }
 }
 
-/**
- * 録画用Canvas描画ループ (録画中のみ実行)
- * requestAnimationFrameを使用して滑らかさを確保
- */
 function drawCanvasLoop() {
     if (!recorder || recorder.state === "inactive") return;
-
-    // 映像描画
     ctx.save();
-    if (currentFacingMode === "user") {
-        ctx.translate(captureCanvas.width, 0);
-        ctx.scale(-1, 1);
-    }
+    if (currentFacingMode === "user") { ctx.translate(captureCanvas.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
     ctx.restore();
     
-    // タイマー焼き込み
-    const timerText = stopwatchDisplay.textContent;
-    ctx.font = "bold 60px 'BIZ UDGothic'";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    
-    // 録画ファイル側の縁取り
-    ctx.strokeStyle = "white"; 
-    ctx.lineWidth = 10; 
-    ctx.lineJoin = "round";
-    ctx.strokeText(timerText, 40, 40);
-    ctx.fillStyle = "black"; 
-    ctx.fillText(timerText, 40, 40);
-    
+    const timerText = stopwatchDisplay.innerText;
+    const fontSize = Math.floor(captureCanvas.height * 0.08); // 解像度に合わせてフォントサイズを可変
+    ctx.font = `bold ${fontSize}px 'BIZ UDGothic'`;
+    ctx.strokeStyle = "white"; ctx.lineWidth = fontSize * 0.15;
+    ctx.strokeText(timerText, fontSize * 0.5, fontSize * 1.2);
+    ctx.fillStyle = "black"; ctx.fillText(timerText, fontSize * 0.5, fontSize * 1.2);
     drawLoopID = requestAnimationFrame(drawCanvasLoop);
 }
 
-/**
- * 画面表示用タイマー更新 (独立ループ)
- */
-function updateTimerDisplay() {
+function updateTimer() {
     if (!timerRunning) return;
-
     const now = Date.now();
     const diff = now - timerStartTime + elapsedTime;
-    
     const m = String(Math.floor(diff / 60000)).padStart(2, '0');
     const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
     const ms = String(Math.floor((diff % 1000) / 10)).padStart(2, '0');
-    
     const timeStr = `${m}:${s}.${ms}`;
-    
-    // DOM操作の負荷を最小限にするため、値が変わった時のみ更新
-    if (stopwatchDisplay.innerText !== timeStr) {
-        stopwatchDisplay.innerText = timeStr;
-    }
-    
-    timerRequestID = requestAnimationFrame(updateTimerDisplay);
+    if (stopwatchDisplay.innerText !== timeStr) stopwatchDisplay.innerText = timeStr;
+    timerRequestID = requestAnimationFrame(updateTimer);
 }
 
 timerStartBtn.onclick = () => {
-    timerRunning = true;
-    timerStartTime = Date.now();
-    updateTimerDisplay(); // タイマー専用ループ開始
-    timerStartBtn.disabled = true;
-    timerStopBtn.disabled = false;
+    timerRunning = true; timerStartTime = Date.now();
+    updateTimer();
+    timerStartBtn.disabled = true; timerStopBtn.disabled = false;
 };
 
 timerStopBtn.onclick = () => {
-    timerRunning = false;
-    elapsedTime += Date.now() - timerStartTime;
+    timerRunning = false; elapsedTime += Date.now() - timerStartTime;
     cancelAnimationFrame(timerRequestID);
-    timerStartBtn.disabled = false;
-    timerStopBtn.disabled = true;
+    timerStartBtn.disabled = false; timerStopBtn.disabled = true;
 };
 
 timerResetBtn.onclick = () => {
-    timerRunning = false;
-    cancelAnimationFrame(timerRequestID);
-    elapsedTime = 0;
-    stopwatchDisplay.innerText = "00:00.00";
-    timerStartBtn.disabled = false;
-    timerStopBtn.disabled = true;
+    timerRunning = false; cancelAnimationFrame(timerRequestID);
+    elapsedTime = 0; stopwatchDisplay.innerText = "00:00.00";
+    timerStartBtn.disabled = false; timerStopBtn.disabled = true;
 };
 
 recordStartBtn.onclick = () => {
     recordedChunks = [];
-    const mimeType = getSupportedMimeType();
-    
-    // Canvas(映像) + mainStream(音声) の合成
-    const canvasStream = captureCanvas.captureStream(30); // 30fps固定で安定化
+    downloadContainer.innerHTML = '';
+    const canvasStream = captureCanvas.captureStream(30);
     const combinedStream = new MediaStream();
-    
     canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
-    if (mainStream) {
-        mainStream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
-    }
+    if (mainStream) mainStream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
 
+    const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=vp8';
     recorder = new MediaRecorder(combinedStream, { mimeType });
     recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     recorder.onstop = () => {
         cancelAnimationFrame(drawLoopID);
         const blob = new Blob(recordedChunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
-        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-        downloadContainer.innerHTML = `<a href="${url}" download="video_${Date.now()}.${ext}" class="download-link-style">📥 動画を保存</a>`;
+        downloadContainer.innerHTML = `<a href="${url}" download="timer_video.mp4" class="download-link-style">📥 保存</a>`;
     };
-
     recorder.start(1000);
-    drawCanvasLoop(); // 録画用描画ループ開始
-    
-    recordStartBtn.disabled = true;
-    recordStopBtn.disabled = false;
+    drawCanvasLoop();
+    recordStartBtn.disabled = true; recordStopBtn.disabled = false;
 };
 
 recordStopBtn.onclick = () => {
-    if (recorder && recorder.state !== "inactive") recorder.stop();
-    recordStartBtn.disabled = false;
-    recordStopBtn.disabled = true;
+    if (recorder) recorder.stop();
+    recordStartBtn.disabled = false; recordStopBtn.disabled = true;
 };
 
 switchCameraBtn.onclick = async () => {
@@ -176,21 +130,20 @@ switchCameraBtn.onclick = async () => {
 };
 
 photoBtn.onclick = () => {
-    // 現在のフレームをCanvasに描画して保存
-    ctx.save();
-    if (currentFacingMode === "user") { ctx.translate(captureCanvas.width, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-    ctx.restore();
-    
-    ctx.font = "bold 60px 'BIZ UDGothic'";
-    ctx.textAlign = "left"; ctx.textBaseline = "top";
-    ctx.strokeStyle = "white"; ctx.lineWidth = 10;
-    ctx.strokeText(stopwatchDisplay.innerText, 40, 40);
-    ctx.fillStyle = "black"; ctx.fillText(stopwatchDisplay.innerText, 40, 40);
-    
+    if (!recorder || recorder.state === "inactive") {
+        ctx.save();
+        if (currentFacingMode === "user") { ctx.translate(captureCanvas.width, 0); ctx.scale(-1, 1); }
+        ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+        ctx.restore();
+        const fontSize = Math.floor(captureCanvas.height * 0.08);
+        ctx.font = `bold ${fontSize}px 'BIZ UDGothic'`;
+        ctx.strokeStyle = "white"; ctx.lineWidth = fontSize * 0.15;
+        ctx.strokeText(stopwatchDisplay.innerText, fontSize * 0.5, fontSize * 1.2);
+        ctx.fillStyle = "black"; ctx.fillText(stopwatchDisplay.innerText, fontSize * 0.5, fontSize * 1.2);
+    }
     const link = document.createElement('a');
-    link.href = captureCanvas.toDataURL('image/jpeg', 0.9);
-    link.download = `photo_${Date.now()}.jpg`;
+    link.href = captureCanvas.toDataURL('image/jpeg', 0.85);
+    link.download = `photo.jpg`;
     link.click();
 };
 
